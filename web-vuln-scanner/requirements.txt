@@ -1,0 +1,9 @@
+requests
+beautifulsoup4
+lxml
+tldextract
+flask
+rich
+sqlite-utils
+
+

@@ -1,0 +1,140 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Phishing Sim Dashboard</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 24px; }
+    h2 { margin-bottom: 12px; }
+    .cards { display: flex; gap: 12px; margin: 12px 0 20px; }
+    .card { padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #eee; padding: 8px; text-align: left; font-size: 14px; }
+    th { background: #f8f8f8; }
+    .muted { color:#777; font-size:12px; margin-top:10px; }
+  </style>
+</head>
+<body>
+  <h2>Phishing Simulation – Dashboard</h2>
+<form action="{{ url_for('send_demo') }}" method="post" style="margin: 8px 0 16px;">
+  <button type="submit">Send demo email (lab only)</button>
+</form>
+
+  <div class="cards">
+    <div class="card"><strong>Total Sent:</strong> {{ total }}</div>
+    <div class="card"><strong>Opens:</strong> {{ opens }}</div>
+    <div class="card"><strong>Clicks:</strong> {{ clicks }}</div>
+  </div>
+<!-- Chart: quick visual of opens/clicks -->
+<div style="max-width:420px; margin: 8px 0 20px;">
+  <canvas id="summaryChart" width="420" height="220" aria-label="Opens vs Clicks chart"></canvas>
+</div>
+<div style="max-width:720px; margin: 8px 0 20px;">
+  <canvas id="scoreChart" width="720" height="240" aria-label="Resilience scores bar chart"></canvas>
+</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Subject</th>
+        <th>Recipient</th>
+        <th>Opened</th>
+        <th>Opened At (UTC)</th>
+        <th>Clicked</th>
+        <th>Clicked At (UTC)</th>
+        <th>Resilience Score</th>     
+       </tr>
+    </thead>
+<!-- Chart.js from CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+  const totalSent = Number({{ total or 0 }});
+  const opens = Number({{ opens or 0 }});
+  const clicks = Number({{ clicks or 0 }});
+  const notOpened = Math.max(0, totalSent - opens);
+
+  const ctx = document.getElementById('summaryChart').getContext('2d');
+  if (window._phishChart) { window._phishChart.destroy(); }
+
+  window._phishChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Opens', 'Clicks', 'Not opened'],
+      datasets: [{
+        label: 'Campaign summary',
+        data: [opens, clicks, notOpened],
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom' },
+        title: { display: true, text: 'Campaign Summary' }
+      }
+    }
+  });
+</script>
+
+<script>
+  // Build labels (recipient emails) and data (resilience scores) from server values
+  const scoreLabels = [
+    {% for r in rows %}
+      "{{ r.recipient|e }}"{% if not loop.last %}, {% endif %}
+    {% endfor %}
+  ];
+
+  const scoreData = [
+    {% for r in rows %}
+      {{ scores[r.id] }}{% if not loop.last %}, {% endif %}
+    {% endfor %}
+  ];
+
+  // Prepare canvas/context
+  const ctx2 = document.getElementById('scoreChart').getContext('2d');
+  if (window._scoreChart) { window._scoreChart.destroy(); }
+
+  // Horizontal bar (using 'bar' with indexAxis 'y' for horizontal)
+  window._scoreChart = new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: scoreLabels,
+      datasets: [{
+        label: 'Resilience Score',
+        data: scoreData,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { beginAtZero: true, max: 120 } // adjust max if you change scoring rules
+      },
+      plugins: {
+        legend: { display: false },
+        title: { display: true, text: 'Resilience Score per Recipient' }
+      }
+    }
+  });
+</script>
+
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.id }}</td>
+        <td>{{ r.subject }}</td>
+        <td>{{ r.recipient }}</td>
+        <td>{{ 'Yes' if r.opened else 'No' }}</td>
+        <td>{{ r.opened_at or '' }}</td>
+        <td>{{ 'Yes' if r.clicked else 'No' }}</td>
+        <td>{{ r.clicked_at or '' }}</td>
+        <td>{{ scores[r.id] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="muted">(Lab-only demo. Do not email real users.)</p>
+</body>
+</html>

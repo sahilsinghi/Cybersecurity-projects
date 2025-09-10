@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Phishing Simulation — Training</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 28px; color:#222; }
+    .card { max-width:820px; margin:0 auto; border:1px solid #eee; padding:20px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.03); }
+    h1 { margin:0 0 8px; font-size:22px; }
+    p.lead { color:#444; margin:6px 0 14px; }
+    ul { margin:10px 0 14px 18px; }
+    .note { color:#666; font-size:13px; margin-top:12px; }
+    .back { display:inline-block; margin-top:14px; text-decoration:none; border:1px solid #ddd; padding:8px 12px; border-radius:6px; }
+    .meta { font-size:13px; color:#555; margin-bottom:8px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Simulation Complete ✅</h1>
+    <div class="meta">Entry ID: <strong>{{ email_id }}</strong></div>
+    <p class="lead">This was a controlled, lab-only phishing test. Thank you for taking part — below are short tips to help you recognise phishing in the future.</p>
+
+    <h3>Quick tips to spot phishing</h3>
+    <ul>
+      <li><strong>Check the sender address</strong> — is the domain exactly correct?</li>
+      <li><strong>Hover links</strong> before clicking to see the real destination URL.</li>
+      <li><strong>Watch for urgency</strong> (password reset, immediate action) — attackers use panic to force mistakes.</li>
+      <li><strong>Unexpected attachments</strong> or requests for credentials are red flags.</li>
+      <li><strong>When in doubt, report</strong> the email to security (or your instructor) instead of clicking.</li>
+    </ul>
+
+    <p class="note">This page intentionally does not collect personal data. It is for awareness and training only.</p>
+
+    <a class="back" href="{{ url_for('dashboard') }}">&larr; Back to Dashboard</a>
+  </div>
+</body>
+</html>

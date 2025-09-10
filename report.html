@@ -1,0 +1,65 @@
+<h1 id="web-application-vulnerability-scanner-report">Web Application
+Vulnerability Scanner — Report</h1>
+<p><strong>Date:</strong> 2025-08-23</p>
+<h2 id="introduction">Introduction</h2>
+<p>This project builds a lightweight web vulnerability scanner. It
+crawls a SPA target (OWASP Juice Shop), discovers endpoints, and runs
+basic XSS/SQLi checks.</p>
+<h2 id="tools-used">Tools Used</h2>
+<ul>
+<li>Python (requests, BeautifulSoup, Playwright)</li>
+<li>SQLite (findings database)</li>
+<li>Docker (OWASP Juice Shop target)</li>
+</ul>
+<h2 id="steps-involved">Steps Involved</h2>
+<ol type="1">
+<li>Set up ARM64-friendly target (Juice Shop via Docker).</li>
+<li>Built crawler with Playwright to execute JS and collect links.</li>
+<li>Stored endpoints and form-like pages in SQLite.</li>
+<li>Implemented XSS and SQLi probes; logged confirmed signals.</li>
+<li>Exported findings and evidence files for verification.</li>
+</ol>
+<h2 id="findings">Findings</h2>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Type</th>
+<th>URL</th>
+<th>Param</th>
+<th>Payload</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>SQLi</td>
+<td>http://127.0.0.1:3000/redirect?to=https://github.com/juice-shop/juice-shop</td>
+<td>q</td>
+<td><code>'</code></td>
+<td>error-marker</td>
+</tr>
+<tr class="even">
+<td>SQLi</td>
+<td>http://127.0.0.1:3000/rest/products/search</td>
+<td>q</td>
+<td><code>'--</code></td>
+<td>error-marker</td>
+</tr>
+</tbody>
+</table>
+<h2 id="evidence">Evidence</h2>
+<p>Saved HTML responses in the <code>evidence/</code> folder (e.g.,
+<code>sqli_*.html</code>). Attach 2 screenshots in the final PDF: -
+Docker <code>juiceshop</code> running (<code>docker ps</code>). -
+Scanner run showing <code>[SQLi Found]</code> lines.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>The scanner successfully crawled a JS-heavy app and detected SQLi
+signals. Future work: add DOM-XSS via headless browser, CSRF checks, and
+severity scoring.</p>

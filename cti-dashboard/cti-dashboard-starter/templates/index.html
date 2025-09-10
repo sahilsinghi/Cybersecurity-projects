@@ -1,0 +1,401 @@
+<!-- templates/index.html - CTI Dashboard UI (Jinja) -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CTI Dashboard — CSV Upload</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; margin: 24px; }
+    h1, h2 { margin-top: 18px; }
+    .upload-box { border: 1px dashed #ccc; padding: 12px; display:inline-block; }
+    table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background: #f7f7f7; }
+    #tsChart { margin-top: 16px; max-width: 100%; }
+    #iocMap { margin-top: 16px; width:100%; height:480px; border:1px solid #ddd; }
+  </style>
+</head>
+<body>
+  <h1>CTI Dashboard — CSV Upload</h1>
+
+  <div class="upload-box">
+    <form action="{{ url_for('upload_csv') }}" method="post" enctype="multipart/form-data">
+      <label for="file">Choose CSV file (columns: value,type,first_seen)</label><br>
+      <input type="file" id="file" name="file" accept=".csv" required>
+      <button type="submit">Upload CSV</button>
+    </form>
+  </div>
+
+  <h2>Latest IOCs (most recent first)</h2>
+  <table>
+    <thead><tr><th>ID</th><th>IOC</th><th>Type</th><th>First Seen</th><th>Ingested At (UTC)</th></tr></thead>
+    <tbody>
+      {% for row in iocs %}
+      <tr>
+        <td>{{ row[0] }}</td>
+        <td>{{ row[1] }}</td>
+        <td>{{ row[2] }}</td>
+        <td>{{ row[3] }}</td>
+        <td>{{ row[4] }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No IOCs yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Recent Enrichments</h2>
+  <table>
+    <thead><tr><th>ID</th><th>IP</th><th>Source / Key Fields</th><th>Enriched At (UTC)</th></tr></thead>
+    <tbody>
+      {% for row in enrichments %}
+      <tr>
+        <td>{{ row[0] }}</td>
+        <td>{{ row[1] }}</td>
+        <td><pre style="white-space:pre-wrap;">{{ row[2] }}</pre></td>
+        <td>{{ row[3] }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">No enrichments yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- IOC ingestions time-series chart -->
+  <h2>IOC ingestions per day</h2>
+  <canvas id="tsChart" width="800" height="300"></canvas>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    // Fetch timeseries data and render Chart.js line chart
+    fetch('/timeseries')
+      .then(resp => resp.json())
+      .then(data => {
+        const ctx = document.getElementById('tsChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: data.labels,
+            datasets: [{
+              label: 'IOCs ingested per day',
+              data: data.counts,
+              tension: 0.2,
+              fill: false,
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              x: { display: true, title: { display: true, text: 'Date (UTC)' } },
+              y: { display: true, title: { display: true, text: 'Count' }, beginAtZero: true }
+            }
+          }
+        });
+      })
+      .catch(err => console.error('Failed to load timeseries data', err));
+  </script>
+
+  <!-- Leaflet map placeholder + includes -->
+  <h2>IOC geolocation map</h2>
+  <div id="iocMap"></div>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // Initialize Leaflet map
+    document.addEventListener('DOMContentLoaded', function () {
+      var map = L.map('iocMap').setView([20, 0], 2);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+
+      // Placeholder marker text until we add real markers
+      var placeholder = L.circleMarker([0,0], { radius: 3, color: '#007bff', fillOpacity: 0.8 }).addTo(map);
+      placeholder.bindPopup('Map loaded — IOC markers will appear here once geolocation is enabled.');
+
+      // Fetch geolocation data and plot markers
+      fetch('/geolocations')
+        .then(resp => resp.json())
+        .then(data => {
+          data.forEach(function(item) {
+            if (item.lat && item.lon) {
+              L.marker([item.lat, item.lon])
+                .addTo(map)
+                .bindPopup(`<b>IP:</b> ${item.ip}<br><b>Country:</b> ${item.country || '?'}<br><b>Source:</b> ${item.source}`);
+            }
+          });
+        })
+        .catch(err => console.error('Failed to load geolocations', err));
+    });
+  </script>
+
+  
+  <h2>Threat Scores</h2>
+  <table id="scoresTable">
+    <thead>
+      <tr><th>ID</th><th>Value</th><th>Type</th><th>Score</th><th>Reason</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    // Fetch scores from backend and populate the table
+    fetch('/scores')
+      .then(resp => resp.json())
+      .then(data => {
+        const tbody = document.querySelector('#scoresTable tbody');
+        tbody.innerHTML = '';
+        data.forEach(item => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${item.id}</td>
+                          <td>${item.value}</td>
+                          <td>${item.type}</td>
+                          <td>${item.score}</td>
+                          <td>${item.reason}</td>`;
+          tbody.appendChild(tr);
+        });
+      })
+      .catch(err => console.error('Failed to load scores', err));
+  </script>
+
+
+  
+  <!-- === Filter / Search UI (inserted) === -->
+  <div id="filterControls" style="margin:18px 0;padding:12px;border:1px solid #eee;border-radius:6px;background:#fafafa;">
+    <strong>Filter IOCs</strong>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;">
+      <div>
+        <label>Search value</label><br>
+        <input id="filterText" placeholder="ip, domain, partial..." style="padding:6px;width:220px;">
+      </div>
+      <div>
+        <label>Type</label><br>
+        <select id="filterType" style="padding:6px;">
+          <option value="all">All</option>
+          <option value="ip">ip</option>
+          <option value="domain">domain</option>
+          <option value="url">url</option>
+          <option value="unknown">unknown</option>
+        </select>
+      </div>
+      <div>
+        <label>Min score</label><br>
+        <input id="filterMinScore" type="number" min="0" max="100" value="0" style="width:90px;padding:6px;">
+      </div>
+      <div>
+        <label>First seen (from)</label><br>
+        <input id="filterDateFrom" type="date" style="padding:6px;">
+      </div>
+      <div>
+        <label>First seen (to)</label><br>
+        <input id="filterDateTo" type="date" style="padding:6px;">
+      </div>
+      <div style="align-self:end">
+        <button id="filterReset" style="padding:8px 10px;border-radius:6px;background:#2b78d9;color:#fff;border:0;">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Client-side filter logic
+    (function(){
+      const txt = document.getElementById('filterText');
+      const typeSel = document.getElementById('filterType');
+      const minScore = document.getElementById('filterMinScore');
+      const dateFrom = document.getElementById('filterDateFrom');
+      const dateTo = document.getElementById('filterDateTo');
+      const resetBtn = document.getElementById('filterReset');
+
+      // Debounce helper
+      function debounce(fn, t){ let timer; return (...a)=>{ clearTimeout(timer); timer=setTimeout(()=>fn(...a), t || 150); }; }
+
+      // Find table and header indices dynamically
+      function findTableAndIndices(){
+        const table = document.querySelector('table');
+        if(!table) return null;
+        const headers = Array.from(table.querySelectorAll('thead th')).map(h => h.textContent.trim().toLowerCase());
+        const idx = {
+          id: headers.indexOf('id'),
+          value: headers.indexOf('ioc') !== -1 ? headers.indexOf('ioc') : headers.indexOf('value'),
+          type: headers.indexOf('type'),
+          first_seen: headers.indexOf('first seen'),
+          ingested_at: headers.indexOf('ingested at'),
+          score: headers.indexOf('score') // may be -1 if not present
+        };
+        return {table, idx};
+      }
+
+      function textIncludes(cellText, q){
+        if(!q) return true;
+        return cellText.toLowerCase().indexOf(q.toLowerCase()) !== -1;
+      }
+
+      function parseDateCell(s){
+        // Try to parse to YYYY-MM-DD string for comparison
+        if(!s) return null;
+        // Try ISO first
+        const d = new Date(s);
+        if(!isNaN(d.getTime())){
+          return d;
+        }
+        // Fallback: attempt parse yyyy-mm-dd prefix
+        const m = s.match(/(\d{4}-\d{2}-\d{2})/);
+        if(m) return new Date(m[1]);
+        return null;
+      }
+
+      function applyFilter(){
+        const tinfo = findTableAndIndices();
+        if(!tinfo) return;
+        const {table, idx} = tinfo;
+        const rows = Array.from(table.querySelectorAll('tbody tr'));
+        const q = txt.value.trim();
+        const selType = typeSel.value;
+        const minS = parseFloat(minScore.value) || 0;
+        const df = dateFrom.value ? new Date(dateFrom.value) : null;
+        const dt = dateTo.value ? new Date(dateTo.value) : null;
+
+        const kept = [];
+        rows.forEach(r=>{
+          const cells = Array.from(r.querySelectorAll('td'));
+          const valueText = (cells[idx.value] && cells[idx.value].textContent.trim()) || '';
+          const typeText = (cells[idx.type] && cells[idx.type].textContent.trim().toLowerCase()) || '';
+          const fsText = (cells[idx.first_seen] && cells[idx.first_seen].textContent.trim()) || '';
+          const scoreText = (idx.score >=0 && cells[idx.score]) ? cells[idx.score].textContent.trim() : '';
+          const scoreNum = scoreText ? parseFloat(scoreText) : 0;
+
+          let ok = true;
+          if(q) ok = ok && textIncludes(valueText, q);
+          if(selType !== 'all') ok = ok && (typeText === selType);
+          if(minS) ok = ok && (scoreNum >= minS);
+          if(df || dt){
+            const dcell = parseDateCell(fsText);
+            if(df && dcell) ok = ok && (dcell >= df);
+            if(dt && dcell) ok = ok && (dcell <= dt);
+            if((df || dt) && !dcell) ok = false; // if filtering by date and row has no date -> hide
+          }
+
+          r.style.display = ok ? '' : 'none';
+          if(ok) kept.push({value:valueText, id:(cells[0] && cells[0].textContent.trim()), score:scoreNum});
+        });
+
+        // If Chart.js scores chart exists as window.scoresChart, update it
+        try{
+          if(window.scoresChart && window.scoresChart.data){
+            const chart = window.scoresChart;
+            // build new datasets based on visible rows (kept)
+            const labels = kept.map(k => `${k.value} (id:${k.id})`);
+            const data = kept.map(k => k.score);
+            chart.data.labels = labels;
+            if(chart.data.datasets && chart.data.datasets[0]){
+              chart.data.datasets[0].data = data;
+            }
+            chart.update();
+          }
+        }catch(e){
+          console.warn('Could not update chart with filtered data', e);
+        }
+      }
+
+      const applyDeb = debounce(applyFilter, 120);
+      [txt, typeSel, minScore, dateFrom, dateTo].forEach(el => {
+        if(el) el.addEventListener('input', applyDeb);
+      });
+      if(resetBtn) resetBtn.addEventListener('click', ()=>{
+        txt.value=''; typeSel.value='all'; minScore.value='0'; dateFrom.value=''; dateTo.value='';
+        applyFilter();
+      });
+
+      // Run once on page load
+      window.addEventListener('load', ()=> { setTimeout(applyFilter, 200); });
+
+    })();
+  </script>
+  <!-- === end filter UI === -->
+
+<h2>Threat Scores Chart</h2>
+  <canvas id="scoresChart" width="800" height="300" style="max-width:100%;"></canvas>
+
+  <script>
+    // Draw bar chart of scores using Chart.js (Chart.js already included earlier)
+    fetch('/scores')
+      .then(resp => resp.json())
+      .then(data => {
+        const labels = data.map(i => i.value + ' (id:'+i.id+')');
+        const scores = data.map(i => i.score);
+        const ctx = document.getElementById('scoresChart').getContext('2d');
+        // remove previous canvas content if Chart exists (safe for reload)
+        if (window.scoresChartInstance) { window.scoresChartInstance.destroy(); }
+        window.scoresChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Threat score',
+              data: scores,
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              x: { display: true, title: { display: true, text: 'IOC (value)' } },
+              y: { display: true, title: { display: true, text: 'Score' }, beginAtZero: true, suggestedMax: 100 }
+            }
+          }
+        });
+      })
+      .catch(err => console.error('Failed to load scores for chart', err));
+  </script>
+
+
+  <h2>Threat Stories</h2>
+  <div id="storiesBox">
+    <em>Loading stories…</em>
+  </div>
+
+  <script>
+    // Fetch stories and render them
+    fetch('/stories')
+      .then(r => r.json())
+      .then(data => {
+        const box = document.getElementById('storiesBox');
+        box.innerHTML = '';
+        if (!data || data.length === 0) {
+          box.innerHTML = '<p>No stories generated yet (need 2+ related IOCs).</p>';
+          return;
+        }
+        data.forEach(s => {
+          const card = document.createElement('div');
+          card.className = 'story-card';
+          card.style = 'border:1px solid #ddd;padding:10px;margin-bottom:8px;border-radius:6px;background:#fff;';
+          card.innerHTML = `<strong>${s.count} IOCs — ${s.country}</strong><p style="margin:8px 0 0 0;">${s.story}</p>`;
+          box.appendChild(card);
+        });
+      })
+      .catch(err => {
+        const box = document.getElementById('storiesBox');
+        box.innerHTML = '<p style="color:darkred">Failed to load stories.</p>';
+        console.error(err);
+      });
+  </script>
+
+
+  <div style="margin-top:20px; margin-bottom:20px;">
+    <a class="btn" href="/export/iocs.csv" target="_blank" style="display:inline-block;padding:8px 12px;border-radius:6px;background:#2b78d9;color:#fff;text-decoration:none;margin-right:8px;">
+      Download IOCs CSV
+    </a>
+    <a class="btn" href="/export/enrichments.csv" target="_blank" style="display:inline-block;padding:8px 12px;border-radius:6px;background:#666;color:#fff;text-decoration:none;">
+      Download Enrichments CSV
+    </a>
+  </div>
+
+<p style="margin-top:20px; color:#666;">Tip: create a CSV with header `value,type,first_seen` and upload it here.</p>
+</body>
+</html>
+

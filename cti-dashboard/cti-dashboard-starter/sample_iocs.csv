@@ -1,0 +1,4 @@
+value,type,first_seen
+8.8.8.8,ip,2023-09-01
+example.com,domain,2023-09-05
+192.0.2.45,ip,2023-09-06

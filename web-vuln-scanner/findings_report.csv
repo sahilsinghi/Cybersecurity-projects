@@ -1,0 +1,3 @@
+vuln_type,url,param,payload,info
+SQLi,http://127.0.0.1:3000/redirect?to=https://github.com/juice-shop/juice-shop,q,"'",error-marker
+SQLi,http://127.0.0.1:3000/rest/products/search,q,"'--",error-marker
